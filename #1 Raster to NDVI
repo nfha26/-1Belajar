@@ -1,0 +1,59 @@
+import rasterio
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Path ke file raster input
+raster_path = r'D:\banyuwulu.tif'
+
+# Path untuk menyimpan NDVI hasil dengan 3 band warna
+output_path = r'D:\ndvi_rgb_result.tif'
+
+# Membaca raster
+with rasterio.open(raster_path) as src:
+    # Membaca band pertama (Red) dan band kedua (NIR)
+    red = src.read(1)
+    nir = src.read(2)
+    
+    # Mengambil profil untuk mempertahankan metadata
+    profile = src.profile
+
+# Menghindari pembagian dengan nol
+ndvi = np.where(
+    (nir + red) == 0, 
+    0,  # Nilai default saat pembagian dengan nol
+    (nir.astype(float) - red.astype(float)) / (nir + red)
+)
+
+# Menangani nilai yang tidak valid
+ndvi[np.isinf(ndvi)] = np.nan  # Mengganti nilai inf dengan NaN
+
+# Normalisasi nilai NDVI antara 0 dan 1 untuk digunakan dalam warna RGB
+ndvi_normalized = (ndvi - ndvi.min()) / (ndvi.max() - ndvi.min())
+
+# Buat array RGB berdasarkan nilai NDVI yang dinormalisasi
+rgb_image = np.zeros((ndvi.shape[0], ndvi.shape[1], 3), dtype=np.float32)
+
+# Membuat band warna
+rgb_image[..., 0] = np.clip(1 - ndvi_normalized, 0, 1)  # Red channel (invers NDVI)
+rgb_image[..., 1] = np.clip(ndvi_normalized, 0, 1)      # Green channel (positif NDVI)
+rgb_image[..., 2] = np.clip(ndvi_normalized * 0.5, 0, 1) # Blue channel (setengah dari NDVI)
+
+# Menampilkan RGB image NDVI
+plt.imshow(rgb_image)
+plt.title('NDVI RGB Composite')
+plt.show()
+
+# Memperbarui profil untuk menulis NDVI dalam 3 band warna
+profile.update(
+    dtype=rasterio.float32,
+    count=3,  # Tiga band (RGB)
+    compress='lzw'  # Kompresi opsional
+)
+
+# Menyimpan NDVI dalam 3 band warna ke file raster baru
+with rasterio.open(output_path, 'w', **profile) as dst:
+    dst.write(rgb_image[..., 0], 1)  # Red band
+    dst.write(rgb_image[..., 1], 2)  # Green band
+    dst.write(rgb_image[..., 2], 3)  # Blue band
+
+print(f"NDVI RGB Composite telah berhasil diekspor ke {output_path}")
