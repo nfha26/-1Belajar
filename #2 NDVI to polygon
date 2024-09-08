@@ -1,0 +1,34 @@
+import rasterio
+import numpy as np
+import geopandas as gpd
+from shapely.geometry import shape
+from rasterio.features import shapes
+
+# Path ke file raster NDVI
+ndvi_raster_path = r'D:\ndvi_rgb_result.tif'
+
+# Membaca raster NDVI
+with rasterio.open(ndvi_raster_path) as src:
+    ndvi_data = src.read(1)
+    transform = src.transform
+
+# Tentukan rentang NDVI yang merepresentasikan vegetasi
+# Misalnya, NDVI di antara 0.4 hingga 0.5 dianggap vegetasi hijau
+vegetasi_mask = np.logical_and(ndvi_data > 0.4, ndvi_data < 0.5)
+
+# Konversi raster vegetasi ke polygon
+results = (
+    {'properties': {'raster_val': v}, 'geometry': s}
+    for i, (s, v) 
+    in enumerate(shapes(vegetasi_mask.astype(np.int16), transform=transform))
+)
+
+# Konversi hasil ke GeoDataFrame
+geoms = list(results)
+gdf = gpd.GeoDataFrame.from_features(geoms)
+
+# Menyimpan hasilnya ke file shapefile
+output_shapefile = r'D:\vegetasi_ndvi_polygon.shp'
+gdf.to_file(output_shapefile)
+
+print(f'Shapefile polygon vegetasi NDVI berhasil diekspor ke {output_shapefile}')
